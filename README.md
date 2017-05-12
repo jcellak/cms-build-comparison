@@ -191,6 +191,13 @@ to `http://server.ip.address.here/wp-admin/install.php` automatically. Follow al
 ## Switching, Customizing, and Profiling each CMS
 Git clone this repository into your `/var/www` folder.
 
+    cd /var/www
+    git init .
+    git remote add origin https://github.com/jcellak/cms-build-comparison.git
+    git fetch origin
+    git checkout master
+
+### Switching
 Navigate to `/var/www/scripts`. Script names should be self-explanatory; run each when you want to switch the CMS
 running on your server. i.e.
 
@@ -198,6 +205,25 @@ running on your server. i.e.
     sudo bash switch-to-wordpress.sh
     sudo bash switch-to-drupal.sh
 
+### Profiling
+Some of these will require you to host your server somewhere more accessible.
+
+- https://developers.google.com/speed/pagespeed/insights/
+  - Free
+  - It's Google
+  - Compares Mobile vs. Desktop
+  - Provides helpful suggestions to fix outstanding issues
+- https://gtmetrix.com/
+  - Free
+  - Aggregates Google PageSpeed and Yahoo YSlow scores
+  - Waterfall charts
+  - History
+- https://blackfire.io/
+  - Free trial available
+  - Great for PHP performance
+  - Publicly sharable results
+
 # TODO
 - Add more CMS platforms for comparison.
 - Add more third party libraries for profiling.
+- Add more recommendations for profiling.
