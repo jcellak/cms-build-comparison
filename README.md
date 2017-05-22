@@ -1,5 +1,5 @@
 # CMS Build and Profiling
-Compare and contrast CMS platforms Drupal and Wordpress side-by-side.
+Compare and contrast modern CMS platforms side-by-side.
 
 The intent is to install roughly similar setups on both platforms (plugins, libraries, assets) and run them through 
 rigorous testing suites and profiling software.
@@ -36,8 +36,35 @@ Install Nginx, MariaDB, PHP7, PHP mods, and CURL
 
     sudo apt-get install -y nginx
     sudo apt-get install -y mariadb-server
-    sudo apt-get install -y php7.0-fpm php7.0-xml php7.0-mcrypt php7.0-mysql php7.0-curl php7.0-gd php7.0-json
+    sudo apt-get install -y php7.0-fpm php7.0-common php7.0-xml php7.0-mcrypt php7.0-mysql php7.0-curl php7.0-gd php7.0-json
     sudo apt-get install -y curl
+
+Git clone this repository into your `/var/www` folder (created after installing Nginx):
+
+    cd /var/www
+    git init .
+    git remote add origin https://github.com/jcellak/cms-build-comparison.git
+    git fetch origin
+    git checkout master
+
+Grant read/write/execute permissions and ownership to `www-data` user and group on `/var/www`.
+
+    sudo chmod -R 2775 /var/www
+    sudo chown -R www-data:www-data /var/www
+
+Add yourself to the 'www-data' group. You must log out and log back in for the changes to take effect:
+
+    sudo usermod -a -G www-data yourUsernameHere
+
+Install Composer system-wide
+
+    curl -sS https://getcomposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
+
+Grant read/write/execute permissions for Composer in your /home/myUsernameHere directory.
+Note: Composer uses current user home directory for temporary install files.
+
+    cd ~
+    sudo chmod -R 2775 .
 
 Optional but recommended: Install SSH to access your VM via PuTTY (or similar SSH program)
 
@@ -46,12 +73,12 @@ Optional but recommended: Install SSH to access your VM via PuTTY (or similar SS
     sudo chmod a-w /etc/ssh/sshd_config.factory-defaults
     sudo systemctl restart ssh
 
-### Configure Nginx and PHP
-Configure Nginx to use php-fpm to server HTTP requests for PHP pages.
+### Configure Nginx, PHP, and MySQL
+Configure Nginx to use php-fpm to serve HTTP requests for PHP pages.
 
     sudo vim /etc/php/7.0/fpm/php.ini
 
-Find `#cgi.fix_pathinfo=1`. Change to `cgi.fix_pathinfo=0` (uncomment and change from 1 to 0). Save and exit.
+Find `;cgi.fix_pathinfo=1`. Change to `cgi.fix_pathinfo=0` (i.e. uncomment and change from 1 to 0). Save and exit.
 
 Make a copy of the default Nginx config (for reference) and edit the original:
 
@@ -59,8 +86,10 @@ Make a copy of the default Nginx config (for reference) and edit the original:
     sudo cp default default.old
     sudo vim default
 
-Edit contents to match the following (adjust as necessary - recommend reading up on Nginx config):
-        
+Edit Nginx config. Adjust as necessary, highly recommended to read up on Nginx config here:
+http://nginx.org/en/docs/beginners_guide.html#conf_structure
+An example is provided as the baseline config for settings up each CMS - they will be based off of the following:
+
     server {
             listen 80 default_server;
             listen [::]:80 default_server;
@@ -70,143 +99,54 @@ Edit contents to match the following (adjust as necessary - recommend reading up
             server_name _;
     
             location / {
-                    try_files $uri $uri/ /index.php;
+                try_files $uri $uri/ /index.php;
             }
     
+            # Nginx with PHP FPM FastCGI support
             location ~ \.php$ {
-                    include snippets/fastcgi-php.conf;
-                    fastcgi_pass unix:/run/php/php7.0-fpm.sock;
+                include snippets/fastcgi-php.conf;
+                fastcgi_pass unix:/run/php/php7.0-fpm.sock;
+            }
+            
+            # Disable all external access to .htaccess (Apache rewrite rules, added by some CMS installations)
+            location ~ /\.htaccess {
+                deny all;
             }
     }
 
-## Drupal 8 Setup
-Download Drupal 8 into your user's home directory and unzip it (tested using version `8.3.2` specifically):
-
-    cd
-    wget https://ftp.drupal.org/files/projects/drupal-8.3.2.tar.gz
-    tar -xvzf drupal-8.3.2.tar.gz
-
-Move unzipped Drupal contents to `/var/www`:
-
-    sudo mv drupal-8.3.2 /var/www/drupal
-
-Initialize Drupal's settings.php file:
-
-    cd /var/www/drupal/sites/default && sudo cp default.settings.php settings.php
-
-Grant read/write/execute permissions and ownership to `www-data` user and group on `/var/www/drupal`:
-
-    sudo chmod -R 775 /var/www/drupal
-    sudo chown -R www-data:www-data /var/www/drupal
-
-Initialize Drupal database and admin user (testing values; do not use on production servers):
-
-    sudo mysql -u root
-    CREATE DATABASE drupal;
-    CREATE USER 'drupal' IDENTIFIED BY 'drupal';
-    GRANT ALL ON drupal.* TO 'drupal';
-    exit
-
-Initialize Nginx config for WordPress by copying and editing the Nginx config file we created earlier, and removing
-the currently enabled symlink configs in `sites-enabled`:
-
-    cd /etc/nginx/sites-available
-    sudo cp default drupal
-    sudo rm /etc/nginx/sites-enabled/*
-    sudo ln -s /etc/nginx/sites-available/drupal /etc/nginx/sites-enabled/drupal
-    sudo vim /etc/nginx/sites-available/drupal
-    
-Change `root /var/www` to `root /var/www/drupal`. Save and exit.
-
-Enter `sudo nginx -t` to test your Nginx config for errors.
-
-Restart PHP, Nginx, and MySQL (MariaDB) services
-
-    sudo service php7.0-fpm restart
-    sudo service nginx restart
-    sudo service mysql restart
-
-In a browser, navigate to `http://server.ip.address.here/core/install.php`. Follow along to complete the installation.
-
-## Wordpress Setup
-Download WordPress 4.7.4 into your user's home directory and unzip it.
-
-    cd
-    wget https://wordpress.org/wordpress-4.7.4.tar.gz
-    tar -xvzf wordpress-4.7.4.tar.gz
-
-Alternatively, downloading the latest version is also recommended, but not tested for these steps:
-
-    cd
-    wget https://wordpress.org/latest.tar.gz
-    tar -xvzf latest.tar.gz
-
-Move unzipped WordPress contents to `/var/www`:
-
-    sudo mv wordpress /var/www/
-
-Initialize WordPress database (testing values; do not use on production servers):
+Initialize MariaDB with a super user (testing values; do not use on production servers):
 	
 	sudo mysql -u root
-    CREATE user 'wuser'@'%' identified by 'wuserPWD';
-    CREATE DATABASE wordpress;
-    GRANT ALL PRIVILEGES ON *.* TO 'wuser'@'%';
+    CREATE user 'sqladmin'@'%' identified by 'sqladmin';
+    GRANT ALL PRIVILEGES ON *.* TO 'sqladmin'@'%';
     exit
 
-Copy and edit WordPress config:
+## Drupal 8 Setup
+See [drupal/README.md](drupal/README.md)
 
-    cd /var/www/wordpress
-    sudo cp wp-config-sample.php wp-config.php
-    sudo vim wp-config.php
+## Wordpress Setup
+See [wordpress/README.md](wordpress/README.md)
 
-Edit values for `DB_NAME`, `DB_USER`, and `DB_PASSWORD` to match WordPress DB init step. Save and exit.
+## October CMS Setup
+See [october/README.md](october/README.md)
 
-Grant read/write/execute permissions and ownership to `www-data` user and group on `/var/www/wordpress`:
+## Bolt CMS Setup
+See [bolt/README.md](bolt/README.md)
 
-    sudo chmod -R 775 /var/www/wordpress
-    sudo chown -R www-data:www-data /var/www/wordpress
+# Switching and Profiling each CMS
 
-Initialize Nginx config for WordPress by copying and editing the Nginx config file we created earlier, and removing
-the currently enabled symlink configs in `sites-enabled`:
-
-    cd /etc/nginx/sites-available
-    sudo cp default wordpress
-    sudo rm /etc/nginx/sites-enabled/*
-    sudo ln -s /etc/nginx/sites-available/wordpress /etc/nginx/sites-enabled/wordpress
-    sudo vim /etc/nginx/sites-available/wordpress
-    
-Change `root /var/www` to `root /var/www/wordpress`. Save and exit.
-
-Enter `sudo nginx -t` to test your Nginx config for errors.
-
-Restart PHP, Nginx, and MySQL (MariaDB) services
-
-    sudo service php7.0-fpm restart
-    sudo service nginx restart
-    sudo service mysql restart
-
-In a browser, navigate to `http://server.ip.address.here/`. It should take you 
-to `http://server.ip.address.here/wp-admin/install.php` automatically. Follow along to complete the installation.
-
-## Switching, Customizing, and Profiling each CMS
-Git clone this repository into your `/var/www` folder.
-
-    cd /var/www
-    git init .
-    git remote add origin https://github.com/jcellak/cms-build-comparison.git
-    git fetch origin
-    git checkout master
-
-### Switching
+## Switching between CMS
 Navigate to `/var/www/scripts`. Script names should be self-explanatory; run each when you want to switch the CMS
 running on your server. i.e.
 
     cd /var/www/scripts
     sudo bash switch-to-wordpress.sh
     sudo bash switch-to-drupal.sh
+    sudo bash switch-to-october.sh
+    sudo bash switch-to-bolt.sh
 
-### Profiling
-Some of these will require you to host your server somewhere more accessible.
+## Profiling each CMS
+Many of these will require you to host your server somewhere externally.
 
 - https://developers.google.com/speed/pagespeed/insights/
   - Free
@@ -222,6 +162,7 @@ Some of these will require you to host your server somewhere more accessible.
   - Free trial available
   - Great for PHP performance
   - Publicly sharable results
+  - From creators of Symfony PHP framework (also powers Bolt CMS and October CMS)
 
 # TODO
 - Add more CMS platforms for comparison.

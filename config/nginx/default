@@ -1,0 +1,23 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www;
+    index index.php;
+    server_name _;
+
+    location / {
+        try_files $uri $uri/ /index.php;
+    }
+
+    # Nginx with PHP FPM FastCGI support
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php7.0-fpm.sock;
+    }
+
+    # Disable all external access to .htaccess (Apache rewrite rules, added by some CMS installations)
+    location ~ /\.htaccess {
+        deny all;
+    }
+}
